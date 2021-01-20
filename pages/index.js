@@ -1,65 +1,163 @@
-import Head from 'next/head'
-import styles from '../styles/Home.module.css'
+import Head from "next/head";
+
+import styles from "../styles/Home.module.css";
+import Layout from "components/common/Layout";
+import { useEffect, useState } from "react";
+import axios from "axios";
+import BookListTable from "components/booksComponent/BookList";
+import { showOnlyTop } from "utils/filtersList";
+import StarsRating from "stars-rating";
+import { ArrowDownIcon, ArrowUpIcon, CloseIcon } from "@chakra-ui/icons";
+import { useRouter } from "next/router";
+import {
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Button,
+} from "@chakra-ui/react";
+import Router from "next/dist/next-server/lib/router/router";
 
 export default function Home() {
+  const [bookList, setBookList] = useState([]);
+  const [sortedBookList, setSortedBookList] = useState([]);
+  const [showLimit, setShowLimit] = useState(50);
+  const [searchResult, setSearchResult] = useState("");
+  const [checkOutList, setCheckOutList] = useState([]);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const router=useRouter();
+
+  useEffect(() => {
+    fetchBookApi();
+  }, []);
+
+  const fetchBookApi = async () => {
+    try {
+      const res = await axios.get(
+        "https://s3-ap-southeast-1.amazonaws.com/he-public-data/books8f8fe52.json"
+      );
+      if (res.status == 200) {
+        setBookList(res.data);
+        let result = res.data.sort(sortByProperty("average_rating"));
+        const limitedResult = [];
+        for (let i = 0; i < 200; i++) {
+          limitedResult.push(result[i]);
+        }
+        setTimeout(() => {
+          setSortedBookList(limitedResult);
+        }, 1000);
+      } else {
+        console.log(res.status);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  const addBookCart = (isbn) => {
+    const temp = bookList.find((books) => books.isbn === isbn);
+    const newAddBook = [...checkOutList];
+    newAddBook.push(temp);
+    console.log("newAddBook", newAddBook);
+    setCheckOutList(newAddBook);
+  };
+
+  function sortByProperty(property) {
+    return function (a, b) {
+      if (a[property] > b[property]) return -1;
+      else if (a[property] < b[property]) return 1;
+
+      return 0;
+    };
+  }
+
+  function sortByPropertyAcs(property) {
+    return function (a, b) {
+      if (a[property] > b[property]) return 1;
+      else if (a[property] < b[property]) return -1;
+
+      return 0;
+    };
+  }
+
+  const removeFromCheckOut=(isbn)=>{
+    const temp = checkOutList.filter((books) => books.isbn !== isbn);
+    setCheckOutList(temp)
+  }
+
+  const handleBookClickEvent = () => {};
+
+  const searchAction = () => {
+    const result = filteredBook(bookList, searchResult);
+    console.log("result", result, bookList, searchResult);
+    setSortedBookList(result.filter((val, index) => index < showLimit));
+  };
+  const handleRowClickEvent = (property, order) => {
+    const updateResult = showOnlyTop(showLimit, bookList, property, order);
+    setSortedBookList(updateResult);
+  };
+
+  const filteredBook = (bookDetails, search) =>
+    bookDetails.filter((book) => {
+      try {
+        return book.title.toLowerCase().search(search.toLowerCase()) !== -1;
+      } catch {
+        return false;
+      }
+    });
+
   return (
-    <div className={styles.container}>
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
+    <Layout
+      searchResult={searchResult}
+      setSearchResult={setSearchResult}
+      searchAction={searchAction}
+      checkOutList={checkOutList}
+      openModal={onOpen}
+    >
+      <BookListTable
+        addBookCart={addBookCart}
+        bookList={sortedBookList}
+        handleBookClickEvent={() => {}}
+        handleRowClickEvent={handleRowClickEvent}
+      ></BookListTable>
+      <Modal isOpen={isOpen} onClose={onClose} size={"full"}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Cart</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {checkOutList.map((data) => (
+              <div className="flex justify-between items-center w-full my-4 py-2 border">
+                <div>Title:{data.title}</div>
+                <div>
+                  <StarsRating
+                    count={5}
+                    value={data.average_rating}
+                    size={12}
+                    color2={"#ffd700"}
+                    edit={false}
+                  />
+                </div>
+                <div>Price:{data.price}</div>
+                <div onClick={()=>{removeFromCheckOut(data.isbn)}}><CloseIcon></CloseIcon></div>
+              </div>
+            ))}
+          </ModalBody>
 
-      <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
-
-        <p className={styles.description}>
-          Get started by editing{' '}
-          <code className={styles.code}>pages/index.js</code>
-        </p>
-
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h3>Documentation &rarr;</h3>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
-
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h3>Learn &rarr;</h3>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/master/examples"
-            className={styles.card}
-          >
-            <h3>Examples &rarr;</h3>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
-
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-          >
-            <h3>Deploy &rarr;</h3>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
-        </div>
-      </main>
-
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <img src="/vercel.svg" alt="Vercel Logo" className={styles.logo} />
-        </a>
-      </footer>
-    </div>
-  )
+          <ModalFooter>
+            <Button colorScheme="blue" mr={3} onClick={onClose}>
+              Close
+            </Button>
+            <Button variant="ghost" onClick={()=>{
+              router.push("thankyou")
+            }}>Checkout</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Layout>
+  );
 }
